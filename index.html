@@ -1,0 +1,156 @@
+<html>
+  <head>
+    <script
+      src="./static/jQ.js"
+      type="text/javascript"
+    ></script>
+    <script
+      src="./static/skulpt.min.js"
+      type="text/javascript"
+    ></script>
+    <script
+      src="./static/skulpt-stdlib.js"
+      type="text/javascript"
+    ></script>
+  </head>
+
+  <body>
+    <form>
+      <textarea id="yourcode" cols="80" rows="10">
+import numpy as np
+import matplotlib.pyplot as plt
+X = np.linspace(-np.pi, np.pi, 256, endpoint=True)
+C,S = np.cos(X), np.sin(X)
+plt.plot(X,C)
+plt.plot(X,S)
+plt.show()
+  </textarea
+      ><br />
+      <button type="button" onclick="runit()">Run</button>
+    </form>
+    <pre id="output"></pre>
+    <div id="mycanvas"></div>
+    <script>
+      // 第三方模块列表
+      var externalLibs = {
+        "./pygal/__init__.js": {
+          path: "./static/pygal/__init__.js",
+          dependencies: [
+            "./static/highcharts/highcharts.js",
+            "./static/highcharts/highcharts-more.js",
+          ],
+        },
+        "./numpy/__init__.js": {
+          path: "./static/numpy/__init__.js",
+        },
+        "./numpy/random/__init__.js": {
+          path: "./static/numpy/random/__init__.js",
+        },
+        "./matplotlib/__init__.js": {
+          path: "./static/matplotlib/__init__.js",
+        },
+        "./matplotlib/pyplot/__init__.js": {
+          path: "./static/matplotlib/pyplot/__init__.js",
+          dependencies: [
+            "./static/d3.min.js",
+          ],
+        },
+        "./json/__init__.js": {
+          path: "./static/json.sk/__init__.js",
+          dependencies: [
+            "./static/json.sk/stringify.js",
+          ],
+        },
+        // "./xml/__init__.js": {
+        //   path: "/cache-prefix-410d6d0a/components/xml.sk/__init__.js",
+        // },
+        // "./xml/etree/__init__.js": {
+        //   path: "/cache-prefix-410d6d0a/components/xml.sk/etree/__init__.js",
+        // },
+        // "./xml/etree/ElementTree.js": {
+        //   path: "/cache-prefix-410d6d0a/components/xml.sk/etree/ElementTree.js",
+        // },
+        // "src/lib/itertools.js": {
+        //   path: "/cache-prefix-f6c3c194/js/skulpt/itertools.js",
+        // },
+        // "src/lib/os.js": {
+        //   path: "/cache-prefix-f6c3c194/js/skulpt/os.js",
+        // },
+      };
+      function outf(text) {
+        var mypre = document.getElementById("output");
+        mypre.innerHTML = mypre.innerHTML + text;
+      }
+      function builtinRead(file) {
+        console.log("Attempting file: " + Sk.ffi.remapToJs(file));
+
+        if (externalLibs[file] !== undefined) {
+          let depArr = []
+          if (externalLibs[file].dependencies !== undefined) {
+            for (var i = 0; i < externalLibs[file].dependencies.length; i++) {
+              var script = document.createElement("script")
+              script.src = externalLibs[file].dependencies[i];
+              document.head.appendChild(script);
+              let resFn = () => {}
+              const p = new Promise((resolve) => {
+                resFn = resolve
+              })
+              script.onload = () => {
+                resFn();
+              };
+              depArr.push(p)
+            }
+          }
+
+          return Sk.misceval.promiseToSuspension(
+
+            fetch(externalLibs[file].path).then(function (resp) {
+              if (depArr.length > 0) {
+                return Promise.all(depArr).then(() => {
+                  return resp.text();
+                })
+              }
+              return resp.text();
+            })
+          );
+        }
+
+        if (
+          Sk.builtinFiles === undefined ||
+          Sk.builtinFiles.files[file] === undefined
+        ) {
+          throw "File not found: '" + file + "'";
+        }
+
+        return Sk.builtinFiles.files[file];
+      }
+      function runit() {
+        var prog = document.getElementById("yourcode").value;
+        var mypre = document.getElementById("output");
+        mypre.innerHTML = "";
+        Sk.pre = "output";
+        Sk.configure({
+          output: outf,
+          read: builtinRead,
+          __future__: Sk.python3,
+          canvas: "mycanvas",
+        });
+
+        (Sk.TurtleGraphics || (Sk.TurtleGraphics = {})).target = "mycanvas";
+        Sk.canvas = "mycanvas";
+        var myPromise = Sk.misceval.asyncToPromise(function () {
+          return Sk.importMainWithBody("<stdin>", false, prog, true);
+        });
+
+        myPromise.then(
+          function (mod) {
+            console.log("success");
+          },
+          function (err) {
+            console.log(err.toString());
+          }
+        );
+      }
+    </script>
+  </body>
+</html>
